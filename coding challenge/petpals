@@ -1,1 +1,155 @@
+-- 1. Initialize Database (SQL Server Compatible)
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'PetPals')
+BEGIN
+    CREATE DATABASE PetPals;
 
+USE PetPals;
+GO
+
+-- 2. Create Tables
+CREATE TABLE Pets (
+    PetID INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Age INT,
+    Breed VARCHAR(100),
+    Type VARCHAR(50) NOT NULL,
+    AvailableForAdoption BIT NOT NULL DEFAULT 1,
+    OwnerID INT NULL
+);
+
+CREATE TABLE Shelters (
+    ShelterID INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Location VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Donations (
+    DonationID INT PRIMARY KEY,
+    ShelterID INT,
+    DonorName VARCHAR(100) NOT NULL,
+    DonationType VARCHAR(50) NOT NULL CHECK (DonationType IN ('Cash', 'Item')),
+    DonationAmount DECIMAL(10,2),
+    DonationItem VARCHAR(255),
+    DonationDate DATETIME NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (ShelterID) REFERENCES Shelters(ShelterID) ON DELETE SET NULL
+);
+
+CREATE TABLE AdoptionEvents (
+    EventID INT PRIMARY KEY,
+    EventName VARCHAR(100) NOT NULL,
+    EventDate DATETIME NOT NULL,
+    Location VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Participants (
+    ParticipantID INT PRIMARY KEY,
+    ParticipantName VARCHAR(100) NOT NULL,
+    ParticipantType VARCHAR(50) NOT NULL CHECK (ParticipantType IN ('Shelter', 'Adopter')),
+    EventID INT,
+    FOREIGN KEY (EventID) REFERENCES AdoptionEvents(EventID) ON DELETE SET NULL
+);
+
+-- 3. Insert Sample Data
+INSERT INTO Shelters (ShelterID, Name, Location) VALUES
+(1, 'Happy Paws Shelter', 'New York'),
+(2, 'Safe Haven Shelter', 'Los Angeles');
+
+INSERT INTO Pets (PetID, Name, Age, Breed, Type, AvailableForAdoption, OwnerID) VALUES
+(1, 'Buddy', 3, 'Golden Retriever', 'Dog', 1, NULL),
+(2, 'Mittens', 2, 'Siamese', 'Cat', 1, NULL),
+(3, 'Charlie', 5, 'Beagle', 'Dog', 0, 1);
+
+INSERT INTO Donations (DonationID, ShelterID, DonorName, DonationType, DonationAmount, DonationItem, DonationDate) VALUES
+(1, 1, 'John Doe', 'Cash', 100.00, NULL, GETDATE()),
+(2, 2, 'Jane Smith', 'Item', NULL, 'Food', GETDATE());
+
+INSERT INTO AdoptionEvents (EventID, EventName, EventDate, Location) VALUES
+(1, 'Adopt-a-Pet Day', '2025-04-01', 'New York City Center'),
+(2, 'Pet Fair', '2025-05-15', 'Los Angeles Park');
+
+INSERT INTO Participants (ParticipantID, ParticipantName, ParticipantType, EventID) VALUES
+(1, 'Happy Paws Shelter', 'Shelter', 1),
+(2, 'Safe Haven Shelter', 'Shelter', 2);
+
+-- 5. Retrieve available pets for adoption
+SELECT Name, Age, Breed, Type FROM Pets WHERE AvailableForAdoption = 1;
+
+-- 6. Retrieve participant names for a specific adoption event
+DECLARE @EventID INT = 1;
+SELECT ParticipantName, ParticipantType FROM Participants WHERE EventID = @EventID;
+
+-- 7. Stored procedure to update shelter information
+GO
+CREATE OR ALTER PROCEDURE UpdateShelterInfo
+    @sID INT,
+    @newName VARCHAR(100),
+    @newLocation VARCHAR(255)
+AS
+BEGIN
+    UPDATE Shelters SET Name = @newName, Location = @newLocation WHERE ShelterID = @sID;
+END
+GO
+
+-- 8. Calculate total donation amount per shelter
+SELECT s.Name, COALESCE(SUM(d.DonationAmount), 0) AS TotalDonations
+FROM Shelters s
+LEFT JOIN Donations d ON s.ShelterID = d.ShelterID
+GROUP BY s.Name;
+
+-- 9. Retrieve pets without an owner
+SELECT Name, Age, Breed, Type FROM Pets WHERE OwnerID IS NULL;
+
+-- 10. Total donations per month and year
+SELECT FORMAT(DonationDate, 'yyyy-MM') AS MonthYear, SUM(DonationAmount) AS TotalDonations
+FROM Donations
+GROUP BY FORMAT(DonationDate, 'yyyy-MM');
+
+-- 11. Distinct breeds of pets aged between 1-3 or older than 5
+SELECT DISTINCT Breed FROM Pets WHERE (Age BETWEEN 1 AND 3) OR (Age > 5);
+
+-- 12. Pets and their shelters where pets are available for adoption
+SELECT p.Name, s.Name AS ShelterName
+FROM Pets p
+JOIN Shelters s ON p.AvailableForAdoption = 1;
+
+-- 13. Total number of participants in events by shelters in a specific city
+DECLARE @City VARCHAR(100) = 'New York';
+SELECT COUNT(*) AS TotalParticipants
+FROM Participants p
+JOIN AdoptionEvents ae ON p.EventID = ae.EventID
+JOIN Shelters s ON p.ParticipantType = 'Shelter' AND s.Location = @City;
+
+-- 14. Unique breeds for pets aged between 1 and 5 years
+SELECT DISTINCT Breed FROM Pets WHERE Age BETWEEN 1 AND 5;
+
+-- 15. Find pets that have not been adopted
+SELECT * FROM Pets WHERE OwnerID IS NULL;
+
+-- 16. Retrieve adopted pets and adopter names
+SELECT p.Name AS PetName, u.Name AS AdopterName
+FROM Pets p
+JOIN Users u ON p.OwnerID = u.UserID;
+
+-- 17. Count of available pets per shelter
+SELECT s.Name, COUNT(p.PetID) AS AvailablePets
+FROM Shelters s
+LEFT JOIN Pets p ON s.ShelterID = p.PetID AND p.AvailableForAdoption = 1
+GROUP BY s.Name;
+
+-- 18. Find pairs of pets from the same shelter with the same breed
+SELECT p1.Name AS Pet1, p2.Name AS Pet2, p1.Breed, s.Name AS Shelter
+FROM Pets p1
+JOIN Pets p2 ON p1.Breed = p2.Breed AND p1.PetID <> p2.PetID
+JOIN Shelters s ON p1.PetID = s.ShelterID;
+
+-- 19. List all combinations of shelters and adoption events
+SELECT s.Name AS Shelter, ae.EventName
+FROM Shelters s
+CROSS JOIN AdoptionEvents ae;
+
+-- 20. Determine shelter with highest number of adopted pets
+SELECT TOP 1 s.Name, COUNT(p.PetID) AS AdoptedPets
+FROM Shelters s
+JOIN Pets p ON s.ShelterID = p.PetID AND p.OwnerID IS NOT NULL
+GROUP BY s.Name
+ORDER BY AdoptedPets DESC;
