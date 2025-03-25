@@ -1,10 +1,10 @@
 -- 1. Initialize Database (SQL Server Compatible)
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'PetPals')
-BEGIN
+
     CREATE DATABASE PetPals;
 
 USE PetPals;
-GO
+
 
 -- 2. Create Tables
 CREATE TABLE Pets (
@@ -79,16 +79,16 @@ DECLARE @EventID INT = 1;
 SELECT ParticipantName, ParticipantType FROM Participants WHERE EventID = @EventID;
 
 -- 7. Stored procedure to update shelter information
-GO
+
 CREATE OR ALTER PROCEDURE UpdateShelterInfo
     @sID INT,
     @newName VARCHAR(100),
     @newLocation VARCHAR(255)
 AS
-BEGIN
+
     UPDATE Shelters SET Name = @newName, Location = @newLocation WHERE ShelterID = @sID;
-END
-GO
+
+
 
 -- 8. Calculate total donation amount per shelter
 SELECT s.Name, COALESCE(SUM(d.DonationAmount), 0) AS TotalDonations
